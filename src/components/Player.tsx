@@ -17,6 +17,8 @@ import {
 } from 'lucide-react'
 import { usePlayerStore } from '@/stores/playerStore'
 import { useUIStore } from '@/stores/uiStore'
+import { useThemeStore } from '@/stores/themeStore'
+import { extractDominantColor, generatePalette, applyPrimaryPalette, applyDynamicBackground } from '@/lib/color'
 import { formatTime, getArtistNames, cn, normalizeImageUrl } from '@/lib/utils'
 import type { PlayMode } from '@/types'
 
@@ -62,6 +64,10 @@ export default function Player() {
   const playlist = usePlayerStore((s) => s.playlist)
   const audioUrl = usePlayerStore((s) => s.audioUrl)
   const isLoadingUrl = usePlayerStore((s) => s.isLoadingUrl)
+
+  // Dynamic color from cover
+  const dynamicColor = useThemeStore((s) => s.dynamicColor)
+  const resolvedTheme = useThemeStore((s) => s.resolvedTheme)
 
   // Store actions
   const togglePlay = usePlayerStore((s) => s.togglePlay)
@@ -182,6 +188,31 @@ export default function Player() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
+
+  // Dynamic color extraction: when dynamicColor is enabled, extract dominant
+  // color from the current song's cover art and apply it as the theme palette.
+  useEffect(() => {
+    if (!dynamicColor) return
+    const coverUrl = normalizeImageUrl(currentSong?.album?.picUrl)
+    if (!coverUrl) return
+
+    let cancelled = false
+    const isDark = resolvedTheme === 'dark'
+    const extractAndApply = async () => {
+      try {
+        const color = await extractDominantColor(coverUrl)
+        if (cancelled) return
+        applyPrimaryPalette(generatePalette(color))
+        applyDynamicBackground(color, isDark)
+      } catch {
+        // Silently fall back to existing palette
+      }
+    }
+    extractAndApply()
+    return () => {
+      cancelled = true
+    }
+  }, [currentSong, dynamicColor, resolvedTheme])
 
   // Handlers
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {

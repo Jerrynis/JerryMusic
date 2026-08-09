@@ -5,6 +5,7 @@ import { useThemeStore } from './stores/themeStore'
 import { useUserStore } from './stores/userStore'
 import { useUIStore } from './stores/uiStore'
 import { usePlayerStore } from './stores/playerStore'
+import { reapplyDynamicBackground } from './lib/color'
 import Sidebar from './components/Sidebar'
 import Player from './components/Player'
 import MobileNav from './components/MobileNav'
@@ -29,6 +30,8 @@ function ThemeWrapper({ children }: { children: React.ReactNode }) {
     } else {
       document.documentElement.classList.remove('dark')
     }
+    // Re-apply dynamic background so it matches the new theme mode
+    reapplyDynamicBackground(resolvedTheme === 'dark')
   }, [resolvedTheme])
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Sun, Moon, Monitor, Music, Info, Github, Heart } from 'lucide-react'
+import { X, Sun, Moon, Monitor, Music, Info, Github, Heart, Palette, Sparkles } from 'lucide-react'
 import { useThemeStore } from '@/stores/themeStore'
 import { cn } from '@/lib/utils'
 
@@ -12,9 +12,24 @@ const qualityLabels: Record<PlayQuality, string> = {
   lossless: '无损',
 }
 
+const presetColors = [
+  '#3b82f6', // blue
+  '#8b5cf6', // violet
+  '#ec4899', // pink
+  '#ef4444', // red
+  '#f97316', // orange
+  '#22c55e', // green
+  '#14b8a6', // teal
+  '#06b6d4', // cyan
+]
+
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const theme = useThemeStore((s) => s.theme)
   const setTheme = useThemeStore((s) => s.setTheme)
+  const accentColor = useThemeStore((s) => s.accentColor)
+  const setAccentColor = useThemeStore((s) => s.setAccentColor)
+  const dynamicColor = useThemeStore((s) => s.dynamicColor)
+  const setDynamicColor = useThemeStore((s) => s.setDynamicColor)
 
   const [playQuality, setPlayQuality] = useState<PlayQuality>(
     () => (localStorage.getItem('playQuality') as PlayQuality) || 'super',
@@ -85,6 +100,73 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                 </button>
               ))}
             </div>
+          </section>
+
+          {/* Theme Color */}
+          <section className="mb-6">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
+              <Palette size={14} />
+              主题色
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {presetColors.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setAccentColor(color)}
+                  className={cn(
+                    'h-9 w-9 rounded-full transition-all hover:scale-110',
+                    accentColor.toLowerCase() === color.toLowerCase() && !dynamicColor
+                      ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-gray-800'
+                      : '',
+                  )}
+                  style={{
+                    backgroundColor: color,
+                    // @ts-expect-error CSS custom property
+                    '--tw-ring-color': color,
+                  }}
+                />
+              ))}
+              {/* Custom color picker */}
+              <label
+                className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-gray-300 transition-all hover:scale-110 dark:border-gray-600"
+                title="自定义颜色"
+              >
+                <input
+                  type="color"
+                  value={accentColor}
+                  onChange={(e) => setAccentColor(e.target.value)}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                />
+                <Palette size={14} className="text-gray-400" />
+              </label>
+            </div>
+
+            {/* Dynamic color toggle */}
+            <button
+              onClick={() => setDynamicColor(!dynamicColor)}
+              className="mt-3 flex w-full items-center justify-between rounded-xl bg-black/5 px-4 py-3 transition-colors hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className={cn(dynamicColor ? 'text-primary-500' : 'text-gray-400')} />
+                <div className="text-left">
+                  <p className="text-sm font-medium">动态取色</p>
+                  <p className="text-xs text-gray-400">从当前播放封面提取主题色</p>
+                </div>
+              </div>
+              <div
+                className={cn(
+                  'relative h-6 w-11 rounded-full transition-colors',
+                  dynamicColor ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600',
+                )}
+              >
+                <div
+                  className={cn(
+                    'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all',
+                    dynamicColor ? 'left-[22px]' : 'left-0.5',
+                  )}
+                />
+              </div>
+            </button>
           </section>
 
           {/* Playback */}

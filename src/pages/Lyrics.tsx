@@ -224,7 +224,7 @@ export default function Lyrics() {
         {/* ============ LEFT: Cover + Info (50%) ============ */}
         <div className="hidden flex-col items-center justify-center gap-10 p-8 md:flex md:w-1/2">
           <div className="animate-scale-blur">
-            <div className="relative overflow-hidden rounded-3xl shadow-2xl w-[340px] h-[340px] md:w-[420px] md:h-[420px] lg:w-[520px] lg:h-[520px] xl:w-[44vh] xl:h-[44vh] xl:min-w-[540px] xl:min-h-[540px]">
+            <div className="relative overflow-hidden rounded-3xl shadow-2xl" style={{ width: 'clamp(320px, 45vh, 560px)', height: 'clamp(320px, 45vh, 560px)' }}>
               {cover ? (
                 <img src={cover} alt={currentSong.name} className="h-full w-full object-cover" />
               ) : (
@@ -235,11 +235,11 @@ export default function Lyrics() {
             </div>
           </div>
 
-          <div className="text-center max-w-[340px] md:max-w-[420px] lg:max-w-[520px] xl:max-w-[44vh]">
-            <h1 className="line-clamp-2 text-4xl font-bold text-white md:text-5xl">{currentSong.name}</h1>
-            <p className="mt-4 text-lg text-white/50 md:text-xl">{getArtistNames(currentSong.artists)}</p>
+          <div className="text-center" style={{ maxWidth: 'clamp(320px, 45vh, 560px)' }}>
+            <h1 className="line-clamp-2 font-bold text-white" style={{ fontSize: 'clamp(1.75rem, 4vh, 3rem)' }}>{currentSong.name}</h1>
+            <p className="mt-4 text-white/50" style={{ fontSize: 'clamp(1rem, 2.5vh, 1.5rem)' }}>{getArtistNames(currentSong.artists)}</p>
             {currentSong.album?.name && (
-              <p className="mt-2 text-base text-white/35 md:text-lg">{currentSong.album.name}</p>
+              <p className="mt-2 text-white/35" style={{ fontSize: 'clamp(0.9rem, 2.2vh, 1.25rem)' }}>{currentSong.album.name}</p>
             )}
           </div>
         </div>
@@ -298,7 +298,7 @@ export default function Lyrics() {
                       }}
                     >
                       {isActive ? (
-                        <p className="text-2xl font-bold leading-relaxed md:text-3xl lg:text-4xl">
+                        <p className="font-bold leading-relaxed" style={{ fontSize: 'clamp(1.5rem, 3.8vh, 2.8rem)' }}>
                           {chars.map((char, ci) => (
                             <span
                               key={ci}
@@ -312,7 +312,7 @@ export default function Lyrics() {
                           ))}
                         </p>
                       ) : (
-                        <p className="text-2xl font-bold leading-relaxed md:text-3xl lg:text-4xl text-white">
+                        <p className="font-bold leading-relaxed text-white" style={{ fontSize: 'clamp(1.5rem, 3.8vh, 2.8rem)' }}>
                           {line.text}
                         </p>
                       )}
