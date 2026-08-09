@@ -1,14 +1,16 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Settings, LogIn } from 'lucide-react'
 import { useThemeStore } from './stores/themeStore'
 import { useUserStore } from './stores/userStore'
 import { useUIStore } from './stores/uiStore'
+import { usePlayerStore } from './stores/playerStore'
 import Sidebar from './components/Sidebar'
 import Player from './components/Player'
 import MobileNav from './components/MobileNav'
 import LoginModal from './components/LoginModal'
 import SettingsModal from './components/SettingsModal'
+import OOBE, { hasAcceptedOOBE } from './components/OOBE'
 import Home from './pages/Home'
 import Search from './pages/Search'
 import PlaylistDetail from './pages/PlaylistDetail'
@@ -92,10 +94,25 @@ function AppContent() {
   const showLyrics = useUIStore((s) => s.showLyrics)
   const setShowLogin = useUIStore((s) => s.setShowLogin)
   const setShowSettings = useUIStore((s) => s.setShowSettings)
+  const restoreState = usePlayerStore((s) => s.restoreState)
+
+  const [showOOBE, setShowOOBE] = useState(() => !hasAcceptedOOBE())
 
   useEffect(() => {
     checkLogin()
   }, [checkLogin])
+
+  // Restore player state on mount if OOBE was already accepted
+  useEffect(() => {
+    if (!showOOBE) {
+      restoreState()
+    }
+  }, [showOOBE, restoreState])
+
+  const handleOOBEAccept = () => {
+    setShowOOBE(false)
+    restoreState()
+  }
 
   return (
     <div
@@ -129,6 +146,9 @@ function AppContent() {
 
       {/* Lyrics overlay - renders on top of current page without unmounting it */}
       {showLyrics && <Lyrics />}
+
+      {/* OOBE - first visit welcome */}
+      {showOOBE && <OOBE onAccept={handleOOBEAccept} />}
     </div>
   )
 }

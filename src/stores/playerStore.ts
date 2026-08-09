@@ -4,6 +4,47 @@ import { songUrl, lyric } from '@/lib/api'
 
 type PlayMode = 'order' | 'repeat' | 'single' | 'shuffle'
 
+const STORAGE_KEY = 'jerrymusic_player_state'
+
+interface PersistedState {
+  playlist: Song[]
+  currentIndex: number
+  currentSong: Song | null
+  currentTime: number
+  volume: number
+  muted: boolean
+  playMode: PlayMode
+}
+
+function saveToStorage(state: PlayerState) {
+  try {
+    const data: PersistedState = {
+      playlist: state.playlist,
+      currentIndex: state.currentIndex,
+      currentSong: state.currentSong,
+      currentTime: state.currentTime,
+      volume: state.volume,
+      muted: state.muted,
+      playMode: state.playMode,
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+  } catch {
+    // Storage full or unavailable, silently ignore
+  }
+}
+
+function loadFromStorage(): PersistedState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as PersistedState
+  } catch {
+    return null
+  }
+}
+
+let lastProgressSave = 0
+
 interface PlayerState {
   // Queue
   playlist: Song[]
@@ -45,6 +86,8 @@ interface PlayerState {
   setIsPlaying: (playing: boolean) => void
   addToPlaylist: (songs: Song[]) => void
   removeFromPlaylist: (index: number) => void
+  restoreState: () => void
+  saveProgress: () => void
 }
 
 function parseLyrics(lrc: string, tlyric?: string): LyricLine[] {
@@ -56,7 +99,7 @@ function parseLyrics(lrc: string, tlyric?: string): LyricLine[] {
     tlyric.split('\n').forEach((line) => {
       const match = line.match(/\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/)
       if (match) {
-        const time = parseInt(match[1]) * 60 + parseInt(match[2]) + parseInt(match[3]) / 1000
+        const time = parseInt(match[1]) * 60 + parseInt(match[2]) + parseInt(match[3]) / Math.pow(10, match[3].length)
         translations.set(time, match[4].trim())
       }
     })
@@ -65,7 +108,7 @@ function parseLyrics(lrc: string, tlyric?: string): LyricLine[] {
   rawLines.forEach((line) => {
     const match = line.match(/\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/)
     if (match) {
-      const time = parseInt(match[1]) * 60 + parseInt(match[2]) + parseInt(match[3]) / 1000
+      const time = parseInt(match[1]) * 60 + parseInt(match[2]) + parseInt(match[3]) / Math.pow(10, match[3].length)
       const text = match[4].trim()
       if (text) {
         let translation: string | undefined
@@ -143,6 +186,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     } catch {
       set({ lyrics: [] })
     }
+
+    saveToStorage(get())
   },
 
   playPlaylist: (songs, index = 0) => {
@@ -184,14 +229,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (audioEl && !isNaN(audioEl.duration)) {
       audioEl.currentTime = time
     }
+    saveToStorage(get())
   },
 
   setVolume: (vol) => {
     set({ volume: vol, muted: vol === 0 })
+    saveToStorage(get())
   },
 
   toggleMute: () => {
     set((state) => ({ muted: !state.muted }))
+    saveToStorage(get())
   },
 
   cyclePlayMode: () => {
@@ -199,6 +247,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const current = get().playMode
     const next = modes[(modes.indexOf(current) + 1) % modes.length]
     set({ playMode: next })
+    saveToStorage(get())
   },
 
   setCurrentTime: (time) => {
@@ -211,6 +260,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       }
     }
     set({ currentTime: time, currentLyricIndex: lyricIndex })
+    // Throttle progress save to every 5s
+    const now = Date.now()
+    if (now - lastProgressSave > 5000) {
+      lastProgressSave = now
+      saveToStorage(get())
+    }
   },
 
   setDuration: (d) => set({ duration: d }),
@@ -220,6 +275,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const existing = get().playlist
     const newSongs = songs.filter((s) => !existing.some((e) => e.id === s.id))
     set({ playlist: [...existing, ...newSongs] })
+    saveToStorage(get())
   },
 
   removeFromPlaylist: (index) => {
@@ -231,5 +287,56 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       currentIndex: newIndex,
       currentSong: newPlaylist[newIndex] || null,
     })
+    saveToStorage(get())
+  },
+
+  saveProgress: () => saveToStorage(get()),
+
+  restoreState: async () => {
+    const saved = loadFromStorage()
+    if (!saved || !saved.currentSong || saved.playlist.length === 0) return
+    set({
+      playlist: saved.playlist,
+      currentIndex: saved.currentIndex,
+      currentSong: saved.currentSong,
+      currentTime: saved.currentTime,
+      volume: saved.volume,
+      muted: saved.muted,
+      playMode: saved.playMode,
+      isPlaying: false,
+      audioUrl: '',
+      isLoadingUrl: true,
+      lyrics: [],
+      currentLyricIndex: -1,
+    })
+
+    const song = saved.currentSong
+
+    // Fetch audio URL so playback works when user hits play
+    try {
+      const isVip = song.fee === 1
+      let res = await songUrl(song.id, 'exhigh', isVip)
+      let url = res.data?.[0]?.url
+      if (!url && !isVip) {
+        res = await songUrl(song.id, 'exhigh', true)
+        url = res.data?.[0]?.url
+      }
+      if (url) {
+        set({ audioUrl: url.replace(/^http:/, 'https:'), isLoadingUrl: false })
+      } else {
+        set({ isLoadingUrl: false })
+      }
+    } catch {
+      set({ isLoadingUrl: false })
+    }
+
+    // Fetch lyrics
+    try {
+      const lrcRes = await lyric(song.id)
+      const parsed = parseLyrics(lrcRes.lrc?.lyric || '', lrcRes.tlyric?.lyric)
+      set({ lyrics: parsed })
+    } catch {
+      set({ lyrics: [] })
+    }
   },
 }))

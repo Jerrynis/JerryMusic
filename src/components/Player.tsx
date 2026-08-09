@@ -128,6 +128,12 @@ export default function Player() {
       if (audio.duration && !isNaN(audio.duration)) {
         usePlayerStore.getState().setDuration(audio.duration)
       }
+      // Seek to restored position (restoreState sets currentTime before audio loads;
+      // playSong sets currentTime to 0 so this is a no-op for new songs)
+      const savedTime = usePlayerStore.getState().currentTime
+      if (savedTime > 0 && savedTime < audio.duration - 1) {
+        audio.currentTime = savedTime
+      }
     }
     const handleDurationChange = () => {
       if (audio.duration && !isNaN(audio.duration)) {
@@ -160,6 +166,20 @@ export default function Player() {
       audio.removeEventListener('ended', handleEnded)
       audio.removeEventListener('play', handlePlay)
       audio.removeEventListener('pause', handlePause)
+    }
+  }, [])
+
+  // Save playback progress when page is hidden or closed
+  useEffect(() => {
+    const saveProgress = () => usePlayerStore.getState().saveProgress()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') saveProgress()
+    }
+    window.addEventListener('beforeunload', saveProgress)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('beforeunload', saveProgress)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
 
