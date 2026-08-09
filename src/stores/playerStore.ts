@@ -26,6 +26,10 @@ interface PlayerState {
   lyrics: LyricLine[]
   currentLyricIndex: number
 
+  // Audio element reference (for seeking from any component)
+  audioEl: HTMLAudioElement | null
+  setAudioEl: (el: HTMLAudioElement | null) => void
+
   // Actions
   playSong: (song: Song, list?: Song[]) => void
   playPlaylist: (songs: Song[], index?: number) => void
@@ -93,6 +97,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isLoadingUrl: false,
   lyrics: [],
   currentLyricIndex: -1,
+  audioEl: null,
+  setAudioEl: (el) => set({ audioEl: el }),
 
   playSong: async (song, list) => {
     const playlist = list || [song]
@@ -173,7 +179,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   seek: (time) => {
+    const { audioEl } = get()
     set({ currentTime: time })
+    if (audioEl && !isNaN(audioEl.duration)) {
+      audioEl.currentTime = time
+    }
   },
 
   setVolume: (vol) => {

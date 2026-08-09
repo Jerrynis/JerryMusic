@@ -76,6 +76,14 @@ export default function Player() {
   // Local UI state
   const [showQueue, setShowQueue] = useState(false)
 
+  // Register audio element in store so seek works from any component
+  useEffect(() => {
+    usePlayerStore.getState().setAudioEl(audioRef.current)
+    return () => {
+      usePlayerStore.getState().setAudioEl(null)
+    }
+  }, [])
+
   // Audio sync: play/pause and src management
   useEffect(() => {
     const audio = audioRef.current

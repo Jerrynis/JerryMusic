@@ -223,9 +223,9 @@ export default function Lyrics() {
                 const chars = splitChars(line.text)
                 const lineDuration = lineDurations[index]
                 const elapsed = currentTime - line.time
-                const { highlightIndex } = isActive
-                  ? getCharHighlight(chars, elapsed, lineDuration)
-                  : { highlightIndex: -1, progress: 0 }
+                const highlightIndex = isActive
+                  ? getCharHighlight(chars, elapsed, lineDuration).highlightIndex
+                  : -1
 
                 return (
                   <div
