@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useMemo } from 'react'
 import {
   Play,
   Pause,
@@ -24,6 +24,23 @@ const playModeIcon: Record<PlayMode['type'], React.ReactNode> = {
   shuffle: <Shuffle size={20} />,
 }
 
+/** Split text into character array, handling CJK and emoji properly */
+function splitChars(text: string): string[] {
+  return [...text]
+}
+
+/** Calculate which character should be highlighted based on timing */
+function getCharHighlight(
+  chars: string[],
+  elapsed: number,
+  lineDuration: number,
+) {
+  if (lineDuration <= 0 || elapsed <= 0) return { highlightIndex: -1, progress: 0 }
+  const progress = Math.min(elapsed / lineDuration, 1)
+  const highlightIndex = Math.floor(progress * chars.length)
+  return { highlightIndex, progress }
+}
+
 export default function Lyrics() {
   const setShowLyrics = useUIStore((s) => s.setShowLyrics)
   const lyricScrollRef = useRef<HTMLDivElement>(null)
@@ -47,6 +64,14 @@ export default function Lyrics() {
   const cyclePlayMode = usePlayerStore((s) => s.cyclePlayMode)
   const setVolume = usePlayerStore((s) => s.setVolume)
   const toggleMute = usePlayerStore((s) => s.toggleMute)
+
+  // Pre-compute line durations for the lyrics array
+  const lineDurations = useMemo(() => {
+    return lyrics.map((line, i) => {
+      const nextLine = lyrics[i + 1]
+      return nextLine ? nextLine.time - line.time : 4
+    })
+  }, [lyrics])
 
   // Auto-scroll lyrics to center
   useEffect(() => {
@@ -150,47 +175,58 @@ export default function Lyrics() {
       {/* Main content: left cover, right lyrics */}
       <div className="relative z-10 flex flex-1 overflow-hidden">
         {/* Left: Square album cover */}
-        <div className="hidden flex-col items-center justify-center gap-8 p-8 lg:flex lg:w-[45%]">
+        <div className="hidden flex-col items-center justify-center gap-10 p-8 lg:flex lg:w-[48%]">
           <div className="animate-scale-blur">
-            <div className="relative overflow-hidden rounded-2xl shadow-2xl" style={{ width: '300px', height: '300px' }}>
+            <div className="relative overflow-hidden rounded-2xl shadow-2xl" style={{ width: '420px', height: '420px' }}>
               {cover ? (
                 <img src={cover} alt={currentSong.name} className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-gray-800">
-                  <Play size={48} className="text-gray-600" />
+                  <Play size={64} className="text-gray-600" />
                 </div>
               )}
             </div>
           </div>
 
           {/* Song info below cover */}
-          <div className="text-center">
-            <h1 className="line-clamp-2 text-2xl font-bold text-white">{currentSong.name}</h1>
-            <p className="mt-1 text-sm text-white/60">{getArtistNames(currentSong.artists)}</p>
+          <div className="text-center max-w-sm">
+            <h1 className="line-clamp-2 text-4xl font-bold text-white">{currentSong.name}</h1>
+            <p className="mt-2 text-lg text-white/60">{getArtistNames(currentSong.artists)}</p>
             {currentSong.album?.name && (
-              <p className="mt-0.5 text-xs text-white/40">{currentSong.album.name}</p>
+              <p className="mt-1 text-sm text-white/40">{currentSong.album.name}</p>
             )}
           </div>
         </div>
 
-        {/* Right: Lyrics */}
+        {/* Right: Lyrics with depth of field */}
         <div className="flex flex-1 flex-col">
           {/* Lyrics scroll area */}
           <div
             ref={lyricScrollRef}
             className="flex-1 overflow-y-auto scrollbar-thin"
             style={{
-              maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
-              WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
+              perspective: '400px',
+              maskImage: 'linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%)',
             }}
           >
             {/* Top padding for centering first lyric */}
-            <div className="h-[30vh]" />
+            <div className="h-[24vh]" />
 
             {lyrics.length > 0 ? (
               lyrics.map((line, index) => {
                 const isActive = index === currentLyricIndex
                 const distance = Math.abs(index - currentLyricIndex)
+                const blur = distance === 0 ? 0 : distance === 1 ? 0 : distance <= 2 ? 1.5 : 2.5
+
+                // Word-by-word highlight for active line
+                const chars = splitChars(line.text)
+                const lineDuration = lineDurations[index]
+                const elapsed = currentTime - line.time
+                const { highlightIndex } = isActive
+                  ? getCharHighlight(chars, elapsed, lineDuration)
+                  : { highlightIndex: -1, progress: 0 }
+
                 return (
                   <div
                     key={index}
@@ -199,30 +235,64 @@ export default function Lyrics() {
                     className={cn(
                       'cursor-pointer py-3 px-4 text-center transition-all duration-500 ease-out sm:px-8',
                       isActive
-                        ? 'text-2xl font-bold text-white scale-100 opacity-100'
-                        : distance <= 2
-                        ? 'text-lg text-white/40 scale-95 opacity-60'
-                        : 'text-base text-white/25 scale-90 opacity-30',
+                        ? 'text-5xl font-bold text-white scale-100 opacity-100'
+                        : distance === 1
+                        ? 'text-3xl text-white/30 scale-92 opacity-45'
+                        : distance === 2
+                        ? 'text-2xl text-white/20 scale-85 opacity-30'
+                        : 'text-xl text-white/12 scale-80 opacity-15',
                     )}
                     style={{
-                      transitionProperty: 'opacity, transform, color, font-size',
+                      transitionProperty: 'opacity, transform, color, font-size, filter',
+                      filter: `blur(${blur}px)`,
+                      transform: isActive
+                        ? 'translateZ(20px) scale(1)'
+                        : distance <= 2
+                        ? `translateZ(${-distance * 10}px) scale(${1 - distance * 0.06})`
+                        : `translateZ(-40px) scale(0.75)`,
                     }}
                   >
-                    <p>{line.text}</p>
+                    {/* Word-by-word rendering for active line */}
+                    {isActive ? (
+                      <p>
+                        {chars.map((char, ci) => (
+                          <span
+                            key={ci}
+                            className={cn(
+                              'transition-all duration-200',
+                              ci < highlightIndex
+                                ? 'text-primary-300'
+                                : ci === highlightIndex
+                                ? 'text-primary-400 scale-110 inline-block'
+                                : 'text-white/80',
+                            )}
+                            style={
+                              ci === highlightIndex
+                                ? { textShadow: '0 0 20px rgba(96, 165, 250, 0.6)' }
+                                : undefined
+                            }
+                          >
+                            {char}
+                          </span>
+                        ))}
+                      </p>
+                    ) : (
+                      <p>{line.text}</p>
+                    )}
                     {line.translation && isActive && (
-                      <p className="mt-1 text-sm font-normal opacity-70">{line.translation}</p>
+                      <p className="mt-2 text-lg font-normal opacity-70">{line.translation}</p>
                     )}
                   </div>
                 )
               })
             ) : (
-              <div className="flex h-[40vh] items-center justify-center text-sm text-white/40">
+              <div className="flex h-[40vh] items-center justify-center text-base text-white/40">
                 暂无歌词
               </div>
             )}
 
             {/* Bottom padding */}
-            <div className="h-[30vh]" />
+            <div className="h-[24vh]" />
           </div>
 
           {/* Mobile cover (shown when left panel hidden) */}
